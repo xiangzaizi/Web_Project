@@ -59,7 +59,7 @@ ROOT_URLCONF = 'dailyfresh.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],  # 设置模板目录
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
