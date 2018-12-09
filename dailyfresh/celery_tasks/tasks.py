@@ -15,7 +15,7 @@ import os
 from apps.goods.models import GoodsType, IndexGoodsBanner, IndexPromotionBanner, IndexTypeGoodsBanner
 
 # 创建celery类的对象
-app = Celery('celery_tasks.tasks', broker='redis://172.16.179.142:6379/1')
+app = Celery('celery_tasks.tasks', broker='redis://192.168.177.140:6381/1')
 
 # 封装任务函数
 @app.task

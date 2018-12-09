@@ -1,11 +1,13 @@
 import re
 
+from django.contrib.auth import authenticate, login, logout
+from django.http import HttpResponse
 from django.core.urlresolvers import reverse
 from django.shortcuts import render, redirect
 from django.views.generic import View
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from django.core.mail import send_mail
-
+from itsdangerous import SignatureExpired  # 过期的异常
 from apps.user.models import User
 from dailyfresh import settings
 
@@ -182,3 +184,97 @@ class RegisterView(View):
 
         # 4. 返回应答: 跳转首页
         return redirect(reverse('good:index'))
+
+# /user/active/加密token
+class ActiveView(View):
+    """激活"""
+    def get(self, request, token):
+        # 创建serializer对象
+        serializer = Serializer(settings.SECRET_KEY, 3600)
+        try:
+
+            # 解密
+            info = serializer.loads(token)
+            # 获取待激活用户Id
+            user_id = info['confirm']
+            # 激活用户
+            user = User.objects.get(id=user_id)
+            user.is_active = 1
+            user.save()
+            # 跳转登录页面
+            return redirect(reverse('user:logi'))
+        except SignatureExpired as e:
+            # 激活链接已失效
+            # 实际开发:返回页面,再次点击链接发送激活邮件
+            return HttpResponse('激活链接已失效')
+
+# user/login
+class LoginView(View):
+    """登录"""
+    def get(self, request):
+        """显示"""
+        # 判断用户是否记住用户名
+        username = request.COOKIES.get('username')
+
+        checked = 'checked'
+        if username is None:
+            # 没有记住用户名
+            username = ''
+            checked = ''
+
+        # 使用模板, 记住用户名
+        return render(request, 'login.html', {'username': username, 'checked': checked})
+    def post(self, request):
+        """登录校验"""
+        # 1.接收参数
+        username = request.POST.get('username')
+        password = request.POST.get('pwd')
+        remember = request.POST.get('remember')  # None
+
+        # 2.参数校验(后端校验)
+        if not all([username, password]):
+            return render(request, 'login.html', {'errmsg': '参数不完整'})
+
+        # 3.业务处理:登录校验
+        user = authenticate(username=username, password=password)
+
+        if user is not None:
+            # 用户名和密码正确
+            if user.is_active:
+                # 用户已激活, 记住用户的登录状态
+                login(request, user)
+
+                # 获取用户登录之前访问的url,默认跳转到首页
+                next_url = request.GET.get('next', reverse('good:index'))
+                # print(next_url)
+                # 定向跳转到首页
+                response = redirect(next_url)  # HttpResponseRedirect
+
+                # 判断是否记住用户名
+                if remember == 'on':
+                    # 设置cookie set name
+                    response.set_cookie('username', username, max_age=7*24*3600)
+                else:
+                    response.delete_cookie('username')
+                # 跳转到首页
+                return response
+            else:
+                # 用户未激活
+                return render(request, 'login.html', {'errmsg':'用户未激活'})
+        else:
+            # 用户名或密码错误
+            return render(request, 'login.html', {'errmsg':'用户名或密码错误'})
+
+
+class LogoutView(View):
+    """退出"""
+    def get(self, request):
+        # 清楚用户登录状态
+        logout(request)
+        # 跳转到登录
+        return redirect(reverse('user:login'))
+
+
+
+
+

@@ -25,7 +25,7 @@ SECRET_KEY = 't*@fu-5%*!i68ow%!3o=y^61&b48ifj4mrti@ahz#)vv-ju3(p'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']  # 允许访问的IP
 
 
 # Application definition
@@ -93,6 +93,10 @@ DATABASES = {
 # Internationalization
 # https://docs.djangoproject.com/en/1.8/topics/i18n/
 
+# 指定django认证系统使用的用户模型类
+AUTH_USER_MODEL = 'user.User'
+
+
 LANGUAGE_CODE = 'zh-Hans'
 
 TIME_ZONE = 'Asia/Shanghai'
@@ -108,6 +112,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/1.8/howto/static-files/
 
 STATIC_URL = '/static/'
+# 设置静态文件存放的物理目录
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+# 指定收集静态文件存放的目录
+STATIC_ROOT = '/var/www/dailyfresh/static'
 
 # 发送邮件配置
 # 发送邮件配置
@@ -120,3 +128,15 @@ EMAIL_HOST_USER = 'project2019@163.com'
 EMAIL_HOST_PASSWORD = ''
 # 收件人看到的发件人
 EMAIL_FROM = 'dailyfresh<project2019@163.com>'
+
+# 设置Django框架缓存
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        # 设置django缓存的数据保存在redis数据库中
+        "LOCATION": "redis://192.168.177.140:6381/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
