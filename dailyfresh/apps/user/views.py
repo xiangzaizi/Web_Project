@@ -4,6 +4,7 @@ from django.core.urlresolvers import reverse
 from django.shortcuts import render, redirect
 from django.views.generic import View
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+from django.core.mail import send_mail
 
 from apps.user.models import User
 from dailyfresh import settings
@@ -142,3 +143,42 @@ class RegisterView(View):
         # 存在问题: 其他用户恶意请求网站进行用户激活操作
         # 解决问题:对用户的信息进行加密，把加密后的信息放在激活链接中，激活的时候在进行解密
         # /user/active/加密后token信息
+
+        # 对用户的身份信息进行加密, 激活生成token信息
+        serializer = Serializer(settings.SECRET_KEY, 3600)
+        info = {'confirm': user.id}
+        # 返回bytes类型
+        token = serializer.dumps(info)
+        # str
+        token = token.decode()
+
+        # 1.组织邮件信息
+        # subject = 'Welcome'
+        # message = ''
+        # sender = settings.EMAIL_FROM
+        # receiver = [email]
+        # html_message = """
+        #     <h1>%s,欢迎您成为天天生鲜注册会员</h1>
+        #     请点击一下链接激活您的账号(1小时之内有效)<br/>
+        #     <a href="http://127.0.0.1:8000/user/active/%s">http://127.0.0.1:8000/user/active/%s</a>
+        #
+        # """ %(username, token, token)
+
+        # 2.send_email参数
+        # send_mail(
+        #     subject='邮件标题',
+        #     message='邮件正文',
+        #     from_email='发件人',
+        #     recipient_list='收件人列表',
+        # )
+        # 模拟send_mail发送邮件
+        # import time
+        # time.sleep(5)
+        # send_mail(subject, message, sender, receiver, html_message=html_message)
+
+        # 使用celery 发送邮件任务
+        from celery_tasks.tasks import send_register_active_email
+        send_register_active_email.delay(email, username, token)
+
+        # 4. 返回应答: 跳转首页
+        return redirect(reverse('good:index'))
