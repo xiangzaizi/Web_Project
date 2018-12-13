@@ -1,5 +1,5 @@
 import re
-
+from django_redis import get_redis_connection
 from django.contrib.auth import authenticate, login, logout
 from django.http import HttpResponse
 from django.core.urlresolvers import reverse
@@ -8,8 +8,11 @@ from django.views.generic import View
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from django.core.mail import send_mail
 from itsdangerous import SignatureExpired  # 过期的异常
-from apps.user.models import User
+
+from apps.goods.models import GoodsSKU
+from apps.user.models import User, Address
 from dailyfresh import settings
+from utils.mixin import LoginRequiredMixin
 
 
 def register_1(request):
@@ -274,6 +277,36 @@ class LogoutView(View):
         # 跳转到登录
         return redirect(reverse('user:login'))
 
+
+# mixin 两种不一样的视图校验
+# UserInfoView----->在URL中校验 login_required(), login_required(UserInfoView)
+# 方式二:
+# class UserInfoView(LoginRequiredView):--->View
+# class UserInfoView(LoginRequiredMixin, View):----> object
+
+class UserInfoView(LoginRequiredMixin, View):
+    def get(self, request):
+        """显示"""
+        user = request.user
+        address = Address.objects.get_default_address(user)
+
+        conn = get_redis_connection('default')
+        # 拼接key
+        history_key = 'history_%d' % user.id
+        sku_ids = conn.lrange(history_key, 0, 4)
+        skus = []
+        for sku_id in sku_ids:
+            sku = GoodsSKU.objects.get(id=sku_id)
+            skus.append(sku)
+
+        # 模板内容
+        context = {
+            'address': address,
+            'skus': skus,
+            'page': 'user'
+        }
+
+        return render(request, 'user_center_info.html', context)
 
 
 
