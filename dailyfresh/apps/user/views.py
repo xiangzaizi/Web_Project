@@ -10,6 +10,7 @@ from django.core.mail import send_mail
 from itsdangerous import SignatureExpired  # 过期的异常
 
 from apps.goods.models import GoodsSKU
+from apps.order.models import OrderInfo, OrderGoods
 from apps.user.models import User, Address
 from dailyfresh import settings
 from utils.mixin import LoginRequiredMixin
@@ -283,8 +284,8 @@ class LogoutView(View):
 # 方式二:
 # class UserInfoView(LoginRequiredView):--->View
 # class UserInfoView(LoginRequiredMixin, View):----> object
-
-class UserInfoView(LoginRequiredMixin, View):
+# /user/  用户信息页
+class UserInfoView(LoginRequiredMixin, View):  # LoginRequiredMixin做登录校验
     def get(self, request):
         """显示"""
         user = request.user
@@ -307,6 +308,38 @@ class UserInfoView(LoginRequiredMixin, View):
         }
 
         return render(request, 'user_center_info.html', context)
+
+
+# /user/order/  用户中心订单翻页-->页码
+
+class UserOrderView(LoginRequiredMixin, View):
+    """用户中心-订单页"""
+    def get(self, request):
+        """显示"""
+        # 获取登录用户
+        user = request.user
+        orders = OrderInfo.objects.filter(user=user).order_by('-create_time')
+
+        # 遍历获取每个订单对应的订单商品的信息
+        for order in orders:
+            # 获取订单商品的信息
+            order_skus = OrderGoods.objects.filter(order=order)
+            # 遍历order_skus计算没件订单做中的小计
+            for order_sku in order_skus:
+                # 计算订单商品的小计
+                amount = order_sku.price * order_sku.ccount
+                # 给order_sku增加amount属性,保存订单中每个商品的小计
+                order_sku.amount = amount
+
+            # 获取订单状态名称和计算订单实付款
+            order.status_title = OrderInfo.ORDER_STATUS[order.order_status]
+            # transit_price运费
+            order.total_pay = order.total_price + order.transit_price
+
+            # 给order对象增加属性order_skus, 包含订单中订单商品的信息
+            order.order_skus = order_skus
+
+
 
 
 
