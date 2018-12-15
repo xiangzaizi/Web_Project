@@ -314,7 +314,7 @@ class UserInfoView(LoginRequiredMixin, View):  # LoginRequiredMixin做登录校�
 
 class UserOrderView(LoginRequiredMixin, View):
     """用户中心-订单页"""
-    def get(self, request):
+    def get(self, request, page):
         """显示"""
         # 获取登录用户
         user = request.user
@@ -339,7 +339,38 @@ class UserOrderView(LoginRequiredMixin, View):
             # 给order对象增加属性order_skus, 包含订单中订单商品的信息
             order.order_skus = order_skus
 
+        # 对订单的分页
+        from django.core.paginator import Paginator
+        paginator = Paginator(orders, 1)  # 创建对象
 
+        # 处理页码
+        page = int(page)
+        if page > paginator.num_pages:
+            page = 1  # 只有一页订单
+
+        # 获取第page页的内容
+        order_page = paginator.page(page)
+
+        # 获取页码列表
+        num_pages = paginator.num_pages
+        if num_pages < 5:  # 页码设定上一页234下一页
+            pages = range(1, num_pages+1)
+        elif page <= 3:
+            pages = range(1, 6)
+        elif num_pages - page <= 2:
+            pages = range(num_pages - 4, num_pages+1)
+        else:
+            pages = range(num_pages - 2, num_pages+3)
+
+        # 组织上下文
+        context = {
+            'order_page': order_page,
+            'pages': pages,
+            'page': 'order'
+        }
+
+        # 使用模板
+        return render(request, 'user_center_order.html', context)
 
 
 
