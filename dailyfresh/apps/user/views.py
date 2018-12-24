@@ -10,6 +10,7 @@ from django.core.mail import send_mail
 from itsdangerous import SignatureExpired  # 过期的异常
 
 from apps.goods.models import GoodsSKU
+from apps.order.models import OrderInfo, OrderGoods
 from apps.user.models import User, Address
 from dailyfresh import settings
 from utils.mixin import LoginRequiredMixin
@@ -307,6 +308,34 @@ class UserInfoView(LoginRequiredMixin, View):
         }
 
         return render(request, 'user_center_info.html', context)
+
+
+#  /user/order/页码
+class UserOrderView(LoginRequiredMixin, View):
+    """用户定带你中心页"""
+    def get(self, request, page):
+        # 获取登录用户
+        user = request.user
+        # 获取用户的所有订单信息
+        orders = OrderInfo.objects.filter(user=user).order_by()
+
+        # 遍历获取每一个订单对应的订单商品的信息
+        for order in orders:
+            # 获取订单商品的信息
+            order_skus = OrderGoods.objects.filter(order=order)
+
+            # 遍历order_skus计算订单中每件商品的小计
+            for order_sku in order_skus:
+                # 计算订单商品的小计
+                amount = order_sku.price * order_sku.count
+                # 给order_sku增加属性amount, 保存订单中每个商品的小计
+                order_sku.amount = amount
+            # 获取订单状态名称和计算订单实付款
+            order.status_title = OrderInfo.ORDER_STATUS[order.order_status]
+            order.total_pay = order.total_price + order.transit_price
+
+            # 给order对象增加属性order_skus,包含订单中订单商品的信息
+            order.order_skus = order_skus
 
 
 
