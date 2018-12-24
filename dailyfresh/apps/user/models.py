@@ -16,7 +16,9 @@ class User(AbstractUser, BaseModel):
 
 
 class AddressManager(models.Manager):
+
     """地址模型管理器类"""
+
     # 封装方法: 改变原有查询的结果集
     # 封装方法: 用于操作模型管理器对象所在模型类对应的数据表(增、删、改、查)
     def get_default_address(self, user):
