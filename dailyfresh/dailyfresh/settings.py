@@ -140,3 +140,20 @@ CACHES = {
         }
     }
 }
+
+# Django的session存储设置
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+# 设置session信息存储在CACHES配置项default对应的redis中
+SESSION_CACHE_ALIAS = "default"
+
+# 指定登录页面对应的url地址
+LOGIN_URL = '/user/login'
+
+# 指定Django保存文件使用的文件存储类
+DEFAULT_FILE_STORAGE = 'utils.fdfs.storage.FDFSStorage'
+
+# 指定FDFS客户端配置文件的路径
+FDFS_CLIENT_CONF = os.path.join(BASE_DIR, 'utils/fdfs/client.conf')
+
+# 指定FDFS系统中Nginx的ip和port
+FDFS_NGINX_URL = 'http://172.16.179.131:8888/'
