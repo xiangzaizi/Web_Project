@@ -371,6 +371,51 @@ class UserOrderView(LoginRequiredMixin, View):
         return render(request, 'user_center_order.html', context)
 
 
+# /user/address
+class AddressView(LoginRequiredMixin, View):
+    """用户中心页-->地址页"""
+    def get(self, request):
+        """1.地址页的显示"""
+        user = request.user
+        address = Address.objects.get_default_address(user)
+        # 返回数据
+        context = {
+            'address': address,
+            'page': 'address'
+        }
+        # 返回到页面
+        return render(request, 'user_center_site.html', context)
 
+    def post(self, request):
+        """2. 用户添加地址"""
+        # 1.接收参数
+        receiver = request.POST.get('receiver')
+        addr = request.POST.get('addr')
+        zip_code = request.POST.get('zip_code')
+        phone = request.POST.get('phone')
+
+        # 2. 校验参数
+        if not all([receiver, addr, phone]):
+            return render(request, 'user_center_site.html', {'errmsg': '参数不完整'})
+
+        # 3. 校验手机号码--略过
+
+        # 4. 处理添加收货地址
+        user = request.user
+        address = Address.objects.get_default_address(user)
+        is_default = True
+        if address is not None:
+            is_default = False
+
+        # 添加收货地址
+        Address.objects.create(user=user,
+                               recriver=receiver,
+                               addr=addr,
+                               zip_code=zip_code,
+                               phone=phone,
+                               is_default=is_default
+                               )
+        # 返回应答,刷新地址页面
+        return redirect(receiver('user:address'))
 
 
