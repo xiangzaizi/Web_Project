@@ -337,6 +337,40 @@ class UserOrderView(LoginRequiredMixin, View):
             # 给order对象增加属性order_skus,包含订单中订单商品的信息
             order.order_skus = order_skus
 
+        # 用户中心商品---->分页
+        from django.core.paginator import Paginator
+        paginator = Paginator(orders, 1)
+
+        # 处理页码
+        page = int(page)
+
+        if page > paginator.num_pages:
+            page = 1
+
+        # 获取第page页的内容
+        order_page = paginator.page(page)
+
+        # 处理页码列表 这里的思路是:1 2345 下一页这样的页面布局时
+        num_pages = paginator.num_pages
+        if num_pages < 5:
+            pages = range(1, num_pages + 1)
+        elif page <= 3:
+            pages = range(1, 6)
+        elif num_pages - page <= 2:
+            pages = range(num_pages - 4, num_pages + 1)
+        else:
+            pages = range(num_pages - 2, num_pages + 3)
+
+        # 组织上下文
+        context = {
+            'order_page': order_page,
+            'pages': pages,
+            'page': 'order',
+        }
+
+        return render(request, 'user_center_order.html', context)
+
+
 
 
 
