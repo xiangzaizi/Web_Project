@@ -1,7 +1,7 @@
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views import View
-
+from django_redis import get_redis_connection
 
 from apps.goods.models import GoodsSKU
 
@@ -33,4 +33,30 @@ class CartAddView(View):
             count = int(count)
         except Exception as e:
             return JsonResponse({"res": 3, "errmsg": "商品信息必须为有效数字"})
+
+        # 业务处理: 购物车记录添加
+        # 获取redis连接
+        conn = get_redis_connection("default")
+
+        # 拼接key, 购物车id就是此用户的id
+        cart_key = 'cart_%d' % user.id
+
+        # 将数据存入redis
+        cart_count = conn.hget(cart_key)
+        if cart_count:
+            # 如果用户的购物车中已经添加过sku_id商品, 购物车中对应的商品数目需要进行累加
+            count += int(cart_count)
+
+        # 校验商品的库存
+        if count > sku.stock:
+            return JsonResponse({"res": 4, "errmsg": "商品库存不足"})
+
+        # 设置用户购物车中sku_id商品的数量
+        # hset(key, field, value) 存在就是修改,不存在就是新增
+        conn.hset(cart_key, sku_id, count)
+
+        # 返回响应数据
+        return JsonResponse({"res": 5, "cart_count": cart_count, "errmsg": "添加购物车记录成功"})
+
+
 
