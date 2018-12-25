@@ -113,3 +113,56 @@ class CartInfoView(LoginRequiredMixin, View):
         return render(request, 'cart.html', context)
 
 
+# 购物车记录更新
+# /cart/update
+class CartUpdateView(View):
+    """购物出记录更新"""
+    def post(self, request):
+        # 判断用户是否登录
+        user = request.user
+        if not user.is_authenticated():
+            return JsonResponse({'res': 0, "errmsg": "请先登录"})
+
+        # 接收参数
+        sku_id = request.POST.get('sku_id')
+        count = request.POST.get('count')
+        # 参数校验
+        if not all([]):
+            return JsonResponse({'res': 1, 'errmsg': '参数不完整'})
+
+        # 校验商品id
+        try:
+            sku = GoodsSKU.objects.get(id=sku_id)
+        except GoodsSKU.DoesNotExist:
+            return JsonResponse({'res': 2, 'errmsg': '商品信息错误'})
+
+        # 校验商品数量count
+        try:
+            count = int(count)
+        except Exception as e:
+            return JsonResponse({'res': 3, 'errmsg': '商品数量必须为有效数字'})
+
+        # 业务处理: 购物车记录更新
+        # 连接redis
+        conn = get_redis_connection('default')
+
+        # 拼接该用户的cart_key
+        cart_key = "cart_%d" %user.id
+
+        # 校验商品的库存量
+        if count > sku.stock:
+            return JsonResponse({'res': 4, 'errmsg': '商品库存不足'})
+
+        # 更新用户购物车中商品数量
+        conn.hset(cart_key, sku_id, count)
+
+        # 计算用户购物车中商品的总件数
+        cart_vals = conn.hvals(cart_key)
+
+        total_count = 0
+        for val in cart_vals:
+            total_count += int(val)
+
+        # 返回应答
+        return JsonResponse({'res': 5, 'total_count': total_count, 'errmsg': '更新购物车记录成功'})
+
