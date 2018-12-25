@@ -5,7 +5,7 @@ from django_redis import get_redis_connection
 from django.db import transaction
 
 from apps.goods.models import GoodsSKU
-from apps.order.models import OrderInfo
+from apps.order.models import OrderInfo, OrderGoods
 from apps.user.models import Address
 from utils.mixin import LoginRequiredMixin
 # Create your views here.
@@ -99,7 +99,6 @@ class OrderPlaceView(LoginRequiredMixin, View):
     7) 删除购物车中对应的记录
 """
 # 订单事务
-
 class OrderCommitView(View):
     """订单创建"""
     @transaction.atomic
@@ -154,7 +153,7 @@ class OrderCommitView(View):
             )
             # 2. todo: 订单中包含几个商品需要向df_order_goods中添加几条记录
             # 连接redis
-            connt = get_redis_connection('default')
+            conn = get_redis_connection('default')
             # 拼接key
             cart_key = 'cart_%d' % user.id
 
@@ -171,8 +170,63 @@ class OrderCommitView(View):
                         # 回滚事务到sid保存点
                         transaction.savepoint_rollback(sid)
                         return JsonResponse({'res': 4, 'errmsg': '商品信息错误'})
-        except:
-            pass
+
+                    # 从redis中获取用户要购买的商品的数量
+                    count = conn.hget(cart_key, sku_id)
+                    # 判断商品的库存
+                    if int(count) > sku.stock:
+                        # 回滚事务到sid保存点
+                        transaction.savepoint_rollback(sid)
+                        return JsonResponse({'res': 6, 'errmsg': '商品库存不足'})
+
+                    # 4. todo: 减少商品库存, 增加销量
+                    orgin_stock = sku.stock
+                    new_stock = orgin_stock - int(count)
+                    new_sales = sku.sales + int(count)
+
+                    # update 方法返回数字, 代表更新的行数
+                    res = GoodsSKU.objects.filter(id=sku_id, stock=orgin_stock).update(stock=new_stock, sales=new_sales)
+
+                    if res == 0:
+                        if i == 2:
+                            # 回滚事务到sid保存点
+                            transaction.savepoint_rollback(sid)
+                            # 连续尝试了3次, 任然下单失败, 下单失败
+                            return JsonResponse({'res':7, 'errmsg': '下单失败2'})
+                        # 跟新失败, 重新进行尝试
+                        continue
+
+                    # 向df_order_goods中添加一条记录
+                    OrderGoods.objects.create(
+                        order=order,
+                        sku=sku,
+                        count=count,
+                        price=sku.price
+                    )
+
+                    # 累加计算订单中的总数目和总价格
+                    total_count += int(count)
+                    total_price += sku.price * int(count)
+
+                    # 跟新成功, 跳出循环
+                    break
+
+            # 5. todo: 更新订单信息中商品的总数目和总价格
+            order.total_count = total_count
+            order.total_price = total_price
+            order.save()
+
+        except Exception as e:
+            # 回滚事务到sid保存点
+            transaction.savepoint_rollback(sid)
+            return JsonResponse({'res': 7, 'errmsg': '下单失败1'})
+
+        # 6. todo: 删除购物车中对应的记录
+        # hdel(key, *args)
+        conn.hdel(cart_key, *sku_ids)
+
+        # 返回应答
+        return JsonResponse({'res': 5, 'errmsg': '订单创建成功'})
 
 
 
