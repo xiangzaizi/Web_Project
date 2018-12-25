@@ -1,8 +1,11 @@
+from django.http import JsonResponse
 from django.shortcuts import render
 from django.views import View
 from django_redis import get_redis_connection
+from django.db import transaction
 
 from apps.goods.models import GoodsSKU
+from apps.order.models import OrderInfo
 from apps.user.models import Address
 from utils.mixin import LoginRequiredMixin
 # Create your views here.
@@ -74,3 +77,65 @@ class OrderPlaceView(LoginRequiredMixin, View):
 
         # 返回响应数据
         return render(request, 'place_order.html', context)
+
+
+# 一个订单创建的分析
+# /order/commit
+# 前端传递的参数: 收货地址id(addr_id) 付款的方式 用户所要购买的全部商品的id(sku_ids)
+"""订单创建的流程
+    1) 接收参数
+    2）参数校验
+    3) 组织订单信息
+    4) 向df_order_info中添加一条记录
+    5) 订单中包含几个商品需要向df_order_goods中添加几条记录
+        5.1 将sku_ids分割成一个列表
+        5.2 遍历sku_ids, 向df_order_goods中添加记录
+            5.2.1 根据id获取商品的信息
+            5.2.2 从redis中获取用户要购买的商品的数量
+            5.2.3 向df_order_goods中添加一条记录
+            5.2.4 减少商品库存,增加销量
+            5.2.5 累加计算订单中商品的总数目和总价格
+    6) 更新订单信息中商品的总数目和总价格
+    7) 删除购物车中对应的记录
+"""
+# 订单事务
+
+class OrderCommitView(View):
+    """订单创建"""
+    @transaction.atomic
+    def post(self, request):
+        # 判断 用户是否登录
+        user = request.user
+        if not user.is_authenticated():
+            return JsonResponse({'res': 0, 'errmsg': '用户未登录'})
+        # 接收参数
+        addr_id = request.POST.get('addr_id')
+        pay_method = request.POST.get('pay_method')
+        sku_ids = request.POST.get('sku_ids')
+
+        # 参数校验
+        if not all([addr_id, pay_method, sku_ids]):
+            return JsonResponse({'res': 1, "errmsg": '参数不完整'})
+
+        # 校验地址id
+        try:
+            addr = Address.objects.get(id=addr_id)
+        except Address.DoesNotExist:
+            return JsonResponse({'res': 2, 'errmsg': '地址信息错误'})
+
+        # 校验支付方式
+        if pay_method not in OrderInfo.PAY_METHODS.keys():
+            return JsonResponse({'res': 3, 'errmsg': '非法的支付方式'})
+
+        # 组织订单信息
+        # 组织订单id: 20180316115930+用户id
+        from datetime import datetime
+        order_id = datetime.now().strftime("%Y%m%d%H%M%S") + str(user.id)
+
+        # 运费
+        transit_price = 10
+        # 总数目和总价格
+        total_count = 0
+        total_price = 0
+
+
