@@ -138,4 +138,42 @@ class OrderCommitView(View):
         total_count = 0
         total_price = 0
 
+        # 设置事物保存点
+        sid = transaction.savepoint()
+
+        try:
+            # 1. todo: 向df_order_info中添加一条记录
+            order = OrderInfo.objects.create(
+                order_id=order_id,
+                user=user,
+                addr=addr,
+                pay_method=pay_method,
+                total_count=total_count,
+                total_price=total_price,
+                transit_price=transit_price
+            )
+            # 2. todo: 订单中包含几个商品需要向df_order_goods中添加几条记录
+            # 连接redis
+            connt = get_redis_connection('default')
+            # 拼接key
+            cart_key = 'cart_%d' % user.id
+
+            # 将sku_ids 分割成一个列表
+            sku_ids = sku_ids.split(',')  # [3,4]
+
+            # 3. todo 遍历sku_ids, 向df_order_goods中添加记录
+            for sku_id in sku_ids:
+                for i in range(3):
+                    # 根据id获取商品的信息
+                    try:
+                       sku = GoodsSKU.objects.get(id=sku_id)
+                    except GoodsSKU.DoesNotExist:
+                        # 回滚事务到sid保存点
+                        transaction.savepoint_rollback(sid)
+                        return JsonResponse({'res': 4, 'errmsg': '商品信息错误'})
+        except:
+            pass
+
+
+
 
