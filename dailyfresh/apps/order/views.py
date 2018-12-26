@@ -1,7 +1,8 @@
 from alipay import AliPay
 from django.http import HttpResponse
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.views import View
 from django_redis import get_redis_connection
 from django.db import transaction
@@ -346,3 +347,38 @@ class OrderCheckView(LoginRequiredMixin, View):
         else:
             # 支付失败
             return render(request, 'pay_result.html', {"pay_result": '支付成功'})
+
+
+# 订单评论
+# /order/comment/订单ID
+class CommentView(LoginRequiredMixin, View):
+    """订单评论"""
+    def get(self, request, order_id):
+        """提供评论页面"""
+        user = request.user
+
+        # 校验数据
+        if not order_id:
+            return redirect(reverse('user:order', kwargs={"page": 1}))
+
+        try:
+            order = OrderInfo.objects.get(order_id=order_id, user=user)
+        except OrderInfo.DoesNotExist:
+            return redirect(reverse('user:order', kwargs={"page": 1}))
+
+        # 根据订单的状态获取订单的状态标题
+        order.status_name = OrderInfo.ORDER_STATUS[order.order_status]
+
+        # 获取订单商品信息
+        order_skus = OrderGoods.objects.filter(order_id=order_id)
+        for order_sku in order_skus:
+            # 计算商品的小计
+            amount = order_sku.count*order_skus.price
+            # 动态给order_sku增加属性amount, 保存商品小计
+            order_sku.amount = amount
+
+        # 动态给order增加属性order_skus, 保存订单商品信息
+        order.order_skus = order_skus
+
+        # 使用模板
+        return render(request, "order_comment.html", {"order": order})
