@@ -230,5 +230,31 @@ class OrderCommitView(View):
         return JsonResponse({'res': 5, 'errmsg': '订单创建成功'})
 
 
+# 订单支付
+# 前端传递的参数: order_id(订单id)
+# /order/pay
+class OrderPayView(View):
+    """订单支付"""
+    def post(self, request):
+        # 登录验证
+        user = request.user
+        if not user.is_authenticated():
+            return JsonResponse({'res': 0, 'errmsg': '用户未登录'})
 
+        # 接收参数
+        order_id = request.POST.get('order_id')
+
+        # 参数校验
+        if not all([order_id]):
+            return JsonResponse({'res': 1, 'errmsg': '缺少参数'})
+
+        # 校验订单id  获取订单
+        try:
+            order = OrderInfo.objects.get(order_id=order_id,
+                                          user=user,
+                                          order_status=1,  # 待支付
+                                          pay_method=3,  # 支付宝支付
+                                          )
+        except OrderInfo.DoesNotExist:
+            return JsonResponse({'res': 2, 'errmsg': '无效订单id'})
 
