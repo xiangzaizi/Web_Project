@@ -1,4 +1,5 @@
 from alipay import AliPay
+from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views import View
@@ -289,3 +290,59 @@ class OrderPayView(View):
         return JsonResponse({"res": 3, "pay_url": pay_url, "errmsg": "OK"})
 
 
+# 订单支付结果
+# /order/check
+class OrderCheckView(LoginRequiredMixin, View):
+    """订单支付结果"""
+    def get(self, request):
+        # 获取登录用户
+        user = request.user
+
+        # 获取用户订单id
+        order_id = request.GET.get('out_trade_no')
+
+        # 校验参数
+        if not all([order_id]):
+            return JsonResponse({'res': 1, 'errmsg': '缺少参数'})
+
+        # 校验订单id
+        try:
+            order = OrderInfo.objects.get(
+                order_id=order_id,
+                user=user,
+                order_status=1,  # 待支付
+                pay_mathod=3,  # 支付宝支付
+            )
+        except OrderInfo.DoesNotExist:
+            return HttpResponse("订单信息错误")
+
+        # 业务处理: 调用Python SDK中的交易查询的接口
+        # 初始化
+        alipay = AliPay(
+            appid=settings.ALIPAY_APP_ID,  # 应用APPID
+            app_notify_url=settings.ALIPAY_APP_NOTIFY_URL,  # 默认回调url
+            app_private_key_path=settings.APP_PRIVATE_KEY_PATH,  # 应用私钥文件路径
+            # 支付宝的公钥文件,验证支付宝回传消息使用,不是你自己的公钥
+            alipay_public_key_path=settings.ALIPAY_PUBLIC_KEY_PATH,
+            sign_type='RSA2',  # RSA or RSA2
+            debug=settings.ALIPAY_DEBUG  # 默认False, False代表线上环境,True代表沙箱环境
+        )
+
+        # 调用Python SDK 中api_alipay_trade_query
+        response = alipay.api_alipay_trade_query(out_trade_no=order_id)
+
+        # 获取支付宝网关的返回码
+        res_code = response.get('code')
+
+        if res_code == '10000' and response.get('trade_status') == 'TRADE_SUCCESS':
+            # 支付成功
+            # 更新订单的支付状态和支付宝交易号
+            order.order_status = 4,  # 待评价
+            order.trade_no = response.get('trade_no')
+            order.save()
+
+            # 返回结果
+            return render(request, 'pay_result.html', {"pay_result": "支付成功"})
+        else:
+            # 支付失败
+            return render(request, 'pay_result.html', {"pay_result": '支付成功'})
