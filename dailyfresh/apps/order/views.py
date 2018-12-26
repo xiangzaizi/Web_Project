@@ -1,3 +1,4 @@
+from alipay import AliPay
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views import View
@@ -7,6 +8,7 @@ from django.db import transaction
 from apps.goods.models import GoodsSKU
 from apps.order.models import OrderInfo, OrderGoods
 from apps.user.models import Address
+from dailyfresh import settings
 from utils.mixin import LoginRequiredMixin
 # Create your views here.
 
@@ -257,4 +259,33 @@ class OrderPayView(View):
                                           )
         except OrderInfo.DoesNotExist:
             return JsonResponse({'res': 2, 'errmsg': '无效订单id'})
+
+        # 业务处理: 调用支付宝python SDK中的api_alipay_trade_page_pay函数
+        # 初始化
+        alipay = AliPay(
+            appid=settings.ALIPAY_APP_ID,  # 应用APPID
+            app_notify_url=settings.ALIPAY_APP_NOTIFY_URL,  # 默认回调url
+            app_private_key_path=settings.APP_PRIVATE_KEY_PATH,  # 应用私钥文件路径
+            # 支付宝的公钥文件，验证支付宝回传消息使用，不是你自己的公钥,
+            alipay_public_key_path=settings.ALIPAY_PUBLIC_KEY_PATH,
+            sign_type="RSA2",  # RSA 或者 RSA2
+            debug=settings.ALIPAY_DEBUG  # 默认False，False代表线上环境，True代表沙箱环境
+        )
+
+        # 调用支付宝pythonSDK中的api_alipay_trade_page_pay函数
+        # 电脑网站支付, 需要跳转到 https://openapi.alipay.com/gateway.do? + order_string
+
+        total_pay = order.total_price + order.transit_price  # Decimal
+        order_string = alipay.api_alipay_trade_page_pay(
+            out_trade_no=order_id,  # 订单id
+            total_amount=str(total_pay),  # 订单实付款
+            subject='天天生鲜%s' % order_id,  # 订单标题
+            return_url='http://127.0.0.1:8000/order/check',
+            notify_url=None  # 可选,不填则使用默认notify url
+        )
+
+        pay_url = settings.ALIPAY_GATEWAY_URL + order_string
+        print(pay_url)
+        return JsonResponse({"res": 3, "pay_url": pay_url, "errmsg": "OK"})
+
 
