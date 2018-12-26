@@ -99,6 +99,7 @@ class OrderPlaceView(LoginRequiredMixin, View):
     7) 删除购物车中对应的记录
 """
 # 订单事务
+# /cart/commit
 class OrderCommitView(View):
     """订单创建"""
     @transaction.atomic
