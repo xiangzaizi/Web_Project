@@ -4,13 +4,10 @@ from django.urls import reverse
 from django.views import View
 from django_redis import get_redis_connection
 from apps.goods.models import GoodsType, IndexGoodsBanner, IndexPromotionBanner, IndexTypeGoodsBanner, GoodsSKU
-
+from apps.order.models import OrderGoods
 
 # http://127.0.0.1:8000
 # /index
-from apps.order.models import OrderGoods
-
-
 class IndexView(View):
     """首页"""
     def get(self, request):
@@ -77,6 +74,8 @@ class IndexView(View):
 # 思路: 1) url捕获, /goods/商品id
     #  2) get传递  /goods?sku_id=商品id
     #  3） post传递
+
+
 # /goods/00001
 class DetailView(View):
     """详情页视图"""
@@ -144,3 +143,22 @@ class DetailView(View):
         # 返回响应
         return render(request, 'detail.html', context)
 
+# 列表页
+# 前端传递的参数: 种类id(type_id) 页码(page) 排序方式(sort)
+# /list?type_id=种类id&page=页码&sort=排序方式
+# /list/种类id/页码/排序方式
+# /list/种类id/页码?sort=排序方式
+
+class ListView(View):
+    """列表页"""
+    def get(self, request, type_id, page):
+        """显示"""
+        # 获取type_id对应的商品种类的信息
+        try:
+            type = GoodsType.objects.get(id=type_id)
+        except GoodsType.DoesNotExist:
+            # 种类不存在，跳转到首页
+            return redirect(reverse('goods:index'))
+
+        # 获取所有商品种类的信息
+        types = GoodsType.objects.all()
