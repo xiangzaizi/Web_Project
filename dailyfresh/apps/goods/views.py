@@ -162,3 +162,81 @@ class ListView(View):
 
         # 获取所有商品种类的信息
         types = GoodsType.objects.all()
+
+        # 获取排序方式
+        # sort=price: 按照商品的价格(price)从低到高排序
+        # sort=hot: 按照商品的人气(sales)从高到底排序
+        # sort=default: 按照默认排序的方式(id)从高到低排序
+        sort = request.GET.get('sort')
+
+        # 获取type种类的商品信息
+        if sort == 'price':
+            skus = GoodsSKU.objects.filter(type=type).order_by('price')
+        elif sort=='hot':
+            skus = GoodsSKU.objects.filter(type=type).order_by('-sales')
+        else:
+            # 按照默认顺序来排序
+            sort = 'default'
+            skus = GoodsSKU.objects.filter(type=type).order_by('-id')
+
+        # 分页操作
+        from django.core.paginator import Paginator
+        paginator = Paginator(skus, 1)
+
+        page = int(page)
+
+        if page > paginator.num_pages:
+            # 默认获取第一页的内容
+            page = 1
+
+        # 获取第page页内容, 返回Page类的实例对象
+        skus_page = paginator.page(page)
+
+        # 页码处理
+        # 如果分页之后页码超过5页,最多在页面上只显示5个页码: 当前页前2页, 当前页, 当前页后2页
+        # 1) 分页页码小于5页, 显示全部页码
+        # 2) 当前页属于1-3页, 显示1-5页
+        # 3) 当前页属于后3页, 显示后5页
+        # 4) 其他请求, 显示当前页前2页, 当前页, 当前页后2页
+        num_pages = paginator.num_pages
+        if num_pages < 5:
+            # 1-num_pages
+            pages = range(1, num_pages+1)
+        elif page<=3:
+            pages = range(1, 6)
+        elif num_pages - page <= 2:
+            # num_page -4, num_pages
+            pages = range(num_pages-4, num_pages+1)
+        else:
+            # page-2, page+2
+            pages = range(page-2, page+3)
+
+        # 获取type种类的2个新品信息
+        new_skus = GoodsSKU.objects.filter(type=type).order_by('-create_time')[:2]
+
+        # 如果用户登录, 获取用户购物车中商品的条目数
+        cart_count = 0
+        if request.user.is_authenticated():
+            # 获取redis链接
+            conn = get_redis_connection('default')
+
+            # 拼接key
+            cart_key = 'cart_%s' % request.user.id
+
+            # 获取用户购物车中商品的条目数
+            # hlen(key) --> 返回属性的数目
+            cart_count = conn.hlen(cart_key)
+
+        # 组织模板上下文数据
+        context = {
+            'type': type,
+            'types': types,
+            'skus_page': skus_page,
+            'new_skus': new_skus,
+            'cart_count': cart_count,
+            'sort': sort,
+            'page': pages,
+        }
+
+        # 使用模板
+        return render(request, 'list.html', context)
