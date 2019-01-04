@@ -1,6 +1,7 @@
 from django.conf.urls import url
 from apps.user import views
-from apps.user.views import RegisterView, ActiveView, LoginView, LogoutView, UserInfoView
+from apps.user.views import RegisterView, ActiveView, LoginView, LogoutView, UserInfoView, UserOrderView, AddressView
+
 urlpatterns = [
     # 注册用户的三种方式
     # url(r'^register$', views.register_1, name='register')  # 注册
@@ -15,7 +16,10 @@ urlpatterns = [
     # url(r'^order/<?P(page)>\d+$', login_required(UserOrderView.as_view()), name='order')
 
     # 方式二:  mixin
-    url('^$', UserInfoView.as_view(), name='user')  # 用户中心页
+    url('^$', UserInfoView.as_view(), name='user'),  # 用户中心页
+    url(r'^order/(?P<page>\d+)$', UserOrderView.as_view(), name='order'), # 用户中心-订单页
+    url(r'^address$', AddressView.as_view(), name='address'),  # 用户中心-地址页
+
 
 
 
